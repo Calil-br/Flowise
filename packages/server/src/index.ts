@@ -323,6 +323,23 @@ export class App {
         // ----------------------------------------
         // Serve UI static
         // ----------------------------------------
+        
+        const BACKUP_SECRET = process.env.BACKUP_SECRET || 'minha-chave-secreta';
+
+        this.app.get('/backup', (req, res) => {
+          const key = req.query.key;
+          if (key !== BACKUP_SECRET) {
+            return res.status(403).send('Acesso negado');
+          }
+
+          const filePath = path.join(process.cwd(), 'flowise-full-backup.tar.gz');
+          res.download(filePath, (err) => {
+            if (err) {
+              console.error('Erro ao enviar backup:', err);
+              res.status(500).send('Erro ao baixar o backup');
+            }
+          });
+        });
 
         const packagePath = getNodeModulesPackagePath('flowise-ui')
         const uiBuildPath = path.join(packagePath, 'build')
