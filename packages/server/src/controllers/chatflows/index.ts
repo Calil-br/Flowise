@@ -8,6 +8,7 @@ import chatflowsService from '../../services/chatflows'
 import { getRunningExpressApp } from '../../utils/getRunningExpressApp'
 import { checkUsageLimit } from '../../utils/quotaUsage'
 import { RateLimiterManager } from '../../utils/rateLimit'
+import { getPageAndLimitParams } from '../../utils/pagination'
 
 const checkIfChatflowIsValidForStreaming = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -67,7 +68,14 @@ const deleteChatflow = async (req: Request, res: Response, next: NextFunction) =
 
 const getAllChatflows = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const apiResponse = await chatflowsService.getAllChatflows(req.query?.type as ChatflowType, req.user?.activeWorkspaceId)
+        const { page, limit } = getPageAndLimitParams(req)
+
+        const apiResponse = await chatflowsService.getAllChatflows(
+            req.query?.type as ChatflowType,
+            req.user?.activeWorkspaceId,
+            page,
+            limit
+        )
         return res.json(apiResponse)
     } catch (error) {
         next(error)
@@ -143,32 +151,6 @@ const saveChatflow = async (req: Request, res: Response, next: NextFunction) => 
             getRunningExpressApp().usageCacheManager
         )
 
-        return res.json(apiResponse)
-    } catch (error) {
-        next(error)
-    }
-}
-
-const importChatflows = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const chatflows: Partial<ChatFlow>[] = req.body.Chatflows
-        const orgId = req.user?.activeOrganizationId
-        if (!orgId) {
-            throw new InternalFlowiseError(
-                StatusCodes.NOT_FOUND,
-                `Error: chatflowsController.saveChatflow - organization ${orgId} not found!`
-            )
-        }
-        const workspaceId = req.user?.activeWorkspaceId
-        if (!workspaceId) {
-            throw new InternalFlowiseError(
-                StatusCodes.NOT_FOUND,
-                `Error: chatflowsController.saveChatflow - workspace ${workspaceId} not found!`
-            )
-        }
-        const subscriptionId = req.user?.activeOrganizationSubscriptionId || ''
-        req.body.workspaceId = req.user?.activeWorkspaceId
-        const apiResponse = await chatflowsService.importChatflows(chatflows, orgId, workspaceId, subscriptionId)
         return res.json(apiResponse)
     } catch (error) {
         next(error)
@@ -273,7 +255,6 @@ export default {
     getChatflowByApiKey,
     getChatflowById,
     saveChatflow,
-    importChatflows,
     updateChatflow,
     getSinglePublicChatflow,
     getSinglePublicChatbotConfig,
