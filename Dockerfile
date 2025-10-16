@@ -35,4 +35,8 @@ RUN pnpm build
 
 EXPOSE 3000
 
-CMD [ "pnpm", "start" ]
+# Create start script
+RUN echo '#!/bin/sh\npnpm start & sleep 5 && pnpm start-worker & wait' > /usr/src/start.sh && \
+    chmod +x /usr/src/start.sh
+
+CMD [ "/bin/sh", "/usr/src/start.sh" ]
