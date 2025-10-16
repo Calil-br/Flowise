@@ -1,83 +1,49 @@
-# Dockerfile otimizado para Flowise Worker
-# Baseado no Dockerfile oficial do worker com melhorias para deploy no Render
-
 FROM node:20-alpine
 
-# Instalar dependências do sistema necessárias
 RUN apk add --update libc6-compat python3 make g++
-
-# Dependências para pdfjs-dist
+# needed for pdfjs-dist
 RUN apk add --no-cache build-base cairo-dev pango-dev
 
-# Instalar Chromium e curl para health checks
+# Install Chromium and curl for container-level health checks
 RUN apk add --no-cache chromium curl
 
-# Instalar PNPM globalmente
+#install PNPM globaly
 RUN npm install -g pnpm
 
-# Configurações do Puppeteer
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Otimização de memória para Node.js
 ENV NODE_OPTIONS=--max-old-space-size=8192
 
-# Definir diretório de trabalho
 WORKDIR /usr/src
 
-# Copiar arquivos de configuração primeiro (para cache do Docker)
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY turbo.json ./
+# Copy app source
+COPY . .
 
-# Copiar apenas os packages necessários para o worker
-COPY packages/components/ ./packages/components/
-COPY packages/server/ ./packages/server/
+RUN pnpm install
 
-# Instalar dependências apenas dos packages necessários
-RUN pnpm install --frozen-lockfile --filter=flowise-components --filter=flowise-server
+RUN pnpm build
 
-# Build apenas dos componentes necessários para o worker
-RUN pnpm build --filter=flowise-components --filter=flowise-server
+# --- Healthcheck Setup ---
 
-# --- Configuração do Healthcheck ---
 WORKDIR /app/healthcheck
 
-# Copiar arquivos do healthcheck
-COPY docker/worker/healthcheck/package.json ./
-RUN npm install --omit=dev
-COPY docker/worker/healthcheck/healthcheck.js ./
+COPY docker/worker/healthcheck/package.json . 
 
-# Voltar para o diretório principal
+RUN npm install --omit=dev
+
+COPY docker/worker/healthcheck/healthcheck.js .
+
+# --- End Healthcheck Setup ---
+
+# Set the main working directory back
 WORKDIR /usr/src
 
-# Configurações de porta do worker
+# Environment variables for port configuration
 ENV WORKER_PORT=5566
-ENV HOST=0.0.0.0
 
-# Configurações específicas do worker
-ENV MODE=worker
-ENV WORKER_CONCURRENCY=1
-
-# Expor porta do worker
+# Expose port (can be overridden by env var)
 EXPOSE ${WORKER_PORT}
 
-# Criar usuário não-root para segurança
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S flowise -u 1001
-
-# Criar diretórios necessários e definir permissões
-RUN mkdir -p /usr/src/.flowise && \
-    chown -R flowise:nodejs /usr/src/.flowise && \
-    chown -R flowise:nodejs /usr/src && \
-    chown -R flowise:nodejs /app
-
-# Mudar para usuário não-root
-USER flowise
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${WORKER_PORT}/healthz || exit 1
-
-# Comando de inicialização
-# Inicia o healthcheck em background e depois o worker
+# Start healthcheck in background and flowise worker in foreground
 CMD ["/bin/sh", "-c", "node /app/healthcheck/healthcheck.js & sleep 5 && pnpm run start-worker"]
