@@ -1,31 +1,82 @@
-# Build local monorepo image for Worker
+# Dockerfile otimizado para Flowise Worker
+# Baseado no Dockerfile oficial do worker com melhorias para deploy no Render
+
 FROM node:20-alpine
+
+# Instalar dependências do sistema necessárias
 RUN apk add --update libc6-compat python3 make g++
-# needed for pdfjs-dist
+
+# Dependências para pdfjs-dist
 RUN apk add --no-cache build-base cairo-dev pango-dev
 
-# Install Chromium
-RUN apk add --no-cache chromium
+# Instalar Chromium e curl para health checks
+RUN apk add --no-cache chromium curl
 
-# Install curl
-RUN apk add --no-cache curl
-
-#install PNPM globaly
+# Instalar PNPM globalmente
 RUN npm install -g pnpm
 
+# Configurações do Puppeteer
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
+# Otimização de memória para Node.js
 ENV NODE_OPTIONS=--max-old-space-size=8192
 
+# Definir diretório de trabalho
 WORKDIR /usr/src
 
-# Copy app source
-COPY . .
+# Copiar arquivos de configuração primeiro (para cache do Docker)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY turbo.json ./
 
-RUN pnpm install
+# Copiar packages
+COPY packages/ ./packages/
 
+# Instalar dependências
+RUN pnpm install --frozen-lockfile
+
+# Build do projeto
 RUN pnpm build
 
-CMD [ "pnpm", "start-worker" ]
+# --- Configuração do Healthcheck ---
+WORKDIR /app/healthcheck
 
+# Copiar arquivos do healthcheck
+COPY docker/worker/healthcheck/package.json ./
+RUN npm install --omit=dev
+COPY docker/worker/healthcheck/healthcheck.js ./
+
+# Voltar para o diretório principal
+WORKDIR /usr/src
+
+# Configurações de porta do worker
+ENV WORKER_PORT=5566
+ENV HOST=0.0.0.0
+
+# Configurações específicas do worker
+ENV MODE=worker
+ENV WORKER_CONCURRENCY=1
+
+# Expor porta do worker
+EXPOSE ${WORKER_PORT}
+
+# Criar usuário não-root para segurança
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S flowise -u 1001
+
+# Criar diretórios necessários e definir permissões
+RUN mkdir -p /usr/src/.flowise && \
+    chown -R flowise:nodejs /usr/src/.flowise && \
+    chown -R flowise:nodejs /usr/src && \
+    chown -R flowise:nodejs /app
+
+# Mudar para usuário não-root
+USER flowise
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${WORKER_PORT}/healthz || exit 1
+
+# Comando de inicialização
+# Inicia o healthcheck em background e depois o worker
+CMD ["/bin/sh", "-c", "node /app/healthcheck/healthcheck.js & sleep 5 && pnpm run start-worker"]
