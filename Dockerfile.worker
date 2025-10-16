@@ -29,14 +29,15 @@ WORKDIR /usr/src
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY turbo.json ./
 
-# Copiar packages
-COPY packages/ ./packages/
+# Copiar apenas os packages necessários para o worker
+COPY packages/components/ ./packages/components/
+COPY packages/server/ ./packages/server/
 
-# Instalar dependências
-RUN pnpm install --frozen-lockfile
+# Instalar dependências apenas dos packages necessários
+RUN pnpm install --frozen-lockfile --filter=flowise-components --filter=flowise-server
 
-# Build do projeto
-RUN pnpm build
+# Build apenas dos componentes necessários para o worker
+RUN pnpm build --filter=flowise-components --filter=flowise-server
 
 # --- Configuração do Healthcheck ---
 WORKDIR /app/healthcheck
