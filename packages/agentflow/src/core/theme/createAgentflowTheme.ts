@@ -32,7 +32,19 @@ export function createAgentflowTheme(isDarkMode: boolean): Theme {
             // Custom card color (now type-safe thanks to types.ts)
             card: {
                 main: tokens.colors.background.card[mode]
+            },
+            warningBanner: {
+                background: tokens.colors.semantic.warningBg,
+                text: tokens.colors.semantic.warningText
             }
+        },
+        typography: {
+            h4: { fontSize: '1rem', fontWeight: 600 },
+            h5: { fontSize: '0.875rem', fontWeight: 600 },
+            h6: { fontSize: '0.75rem', fontWeight: 500 },
+            subtitle1: { fontSize: '0.875rem', fontWeight: 500 },
+            body1: { fontSize: '0.875rem', fontWeight: 400 },
+            body2: { fontSize: '0.75rem', fontWeight: 400 }
         },
         spacing: 8, // MUI's default base unit
         shape: {

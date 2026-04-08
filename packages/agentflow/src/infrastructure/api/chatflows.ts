@@ -1,11 +1,11 @@
 import type { AxiosInstance } from 'axios'
 
-import type { Chatflow, FlowData } from '../../core/types'
+import type { Chatflow, FlowData } from '@/core/types'
 
 /**
  * Create chatflows API functions bound to a client instance
  */
-export function createChatflowsApi(client: AxiosInstance) {
+export function bindChatflowsApi(client: AxiosInstance) {
     return {
         /**
          * Get all chatflows
@@ -104,4 +104,4 @@ export function createChatflowsApi(client: AxiosInstance) {
     }
 }
 
-export type ChatflowsApi = ReturnType<typeof createChatflowsApi>
+export type ChatflowsApi = ReturnType<typeof bindChatflowsApi>
